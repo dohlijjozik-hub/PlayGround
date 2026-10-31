@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#101619" />
+  <meta name="description" content="Drive the SBB IR 16 from Zürich HB to Bern. A browser cab-view train game." />
+  <title>IR 16 · Mittelland Driver</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23d8232a'/%3E%3Ctext x='32' y='42' font-family='Arial,sans-serif' font-size='28' font-weight='700' fill='white' text-anchor='middle'%3ESBB%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main id="app" class="app">
+    <canvas id="view" aria-label="Driver's-eye view of the IR 16 line from Zürich HB to Bern"></canvas>
+
+    <div id="hud" class="hud is-hidden">
+      <header class="topbar">
+        <div class="brand">
+          <span class="sbb-mark" aria-hidden="true"><b>SBB</b><i>CFF</i></span>
+          <span class="line-badge">IR 16</span>
+          <span class="brand-route">Zürich HB <span aria-hidden="true">→</span> Bern</span>
+        </div>
+        <div class="clock-block">
+          <div class="clock" id="clock">09:02:00</div>
+          <div class="punctuality" id="punctuality">On time</div>
+        </div>
+        <div class="top-actions">
+          <button id="mute-btn" class="icon-btn" type="button" aria-label="Toggle sound" title="Sound">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+          </button>
+          <button id="pause-btn" class="icon-btn" type="button" aria-label="Pause game" title="Pause">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1" /><rect x="13.5" y="5" width="4" height="14" rx="1" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="route-strip" aria-label="Route progress">
+        <div class="route-track">
+          <div class="route-fill" id="route-fill"></div>
+          <div class="route-train" id="route-train" aria-hidden="true"></div>
+        </div>
+        <div class="stops" id="stops"></div>
+      </section>
+
+      <div class="hud-bottom">
+        <section class="panel speed-panel" aria-label="Speed and traction">
+          <div class="speed-row">
+            <span class="speed-value" id="speed-value">0</span>
+            <span class="unit">km/h</span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-sign" aria-label="Line speed"><span id="limit-value">40</span></span>
+            <span class="limit-label">Line speed</span>
+            <span class="speed-trend" id="speed-trend">ready</span>
+          </div>
+          <div class="levers">
+            <div class="lever">
+              <span class="lever-label">Power</span>
+              <div class="bar"><i id="power-bar"></i></div>
+            </div>
+            <div class="lever">
+              <span class="lever-label">Brake</span>
+              <div class="bar brake"><i id="brake-bar"></i></div>
+            </div>
+          </div>
+          <div class="meters">
+            <span>Comfort <b id="comfort-value">100</b></span>
+            <span>Safety <b id="safety-value">100</b></span>
+          </div>
+        </section>
+
+        <section class="panel control-panel" aria-label="Driving controls">
+          <button id="brake-btn" class="drive-btn brake" type="button" aria-label="Apply brake">
+            <span class="drive-key">S</span><span class="drive-name">Brake</span>
+          </button>
+          <div class="mini-controls">
+            <button id="horn-btn" class="round-btn" type="button" aria-label="Sound horn">Horn</button>
+            <button id="doors-btn" class="round-btn" type="button" aria-label="Toggle doors">Doors</button>
+          </div>
+          <button id="power-btn" class="drive-btn power" type="button" aria-label="Apply power">
+            <span class="drive-key">W</span><span class="drive-name">Power</span>
+          </button>
+        </section>
+
+        <section class="panel next-panel" aria-label="Next stop">
+          <div class="next-head">Next stop</div>
+          <div class="next-name" id="next-name">Baden</div>
+          <div class="next-meta">
+            <span id="next-distance">3.3 km</span>
+            <span id="next-time">09:04:30</span>
+          </div>
+          <div class="signal-row">
+            <span class="signal-dot" id="signal-dot" aria-hidden="true"></span>
+            <span id="signal-text">Signal 3 · clear</span>
+          </div>
+          <div class="door-state" id="door-state">Doors open</div>
+        </section>
+      </div>
+    </div>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <div id="overlay" class="overlay">
+      <section id="title-screen" class="screen title-screen">
+        <div class="title-card">
+          <div class="eyebrow"><span class="dot"></span> SBB CFF FFS · IR 16 Mittelland</div>
+          <h1>Take the <em>IR 16</em><br />across the Mittelland.</h1>
+          <p class="lede">Zürich HB to Bern in one shift. Watch the line speed, answer the signals, and bring the double-decker to a stop on the mark — station by station.</p>
+
+          <ol class="route-list" aria-label="Route">
+            <li>Zürich HB</li>
+            <li>Baden</li>
+            <li>Brugg AG</li>
+            <li>Aarau</li>
+            <li>Olten</li>
+            <li>Bern</li>
+          </ol>
+
+          <div class="train-picker" role="radiogroup" aria-label="Choose rolling stock">
+            <button class="train-card is-active" type="button" data-train="ic2000" role="radio" aria-checked="true">
+              <span class="train-swatch ic2000" aria-hidden="true"></span>
+              <span class="train-copy">
+                <b>IC 2000</b>
+                <small>Re 460 + double-decker coaches</small>
+              </span>
+              <span class="check" aria-hidden="true">✓</span>
+            </button>
+            <button class="train-card" type="button" data-train="twindexx" role="radio" aria-checked="false">
+              <span class="train-swatch twindexx" aria-hidden="true"></span>
+              <span class="train-copy">
+                <b>Twindexx</b>
+                <small>RABe 502 · FV-Dosto</small>
+              </span>
+              <span class="check" aria-hidden="true">✓</span>
+            </button>
+          </div>
+
+          <button id="start-btn" class="primary-btn" type="button" aria-label="Start game">
+            <span>Start game</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10-6.5-10-6.5z" /></svg>
+          </button>
+          <p class="hint">W / ↑ power · S / ↓ brake · Space doors · H horn · P pause</p>
+        </div>
+        <div class="title-caption">
+          <span>09:02</span>
+          <span>212 km/h timetable</span>
+          <span>6 stops</span>
+        </div>
+      </section>
+
+      <section id="pause-screen" class="screen pause-screen is-hidden">
+        <div class="pause-card">
+          <div class="eyebrow">Service paused</div>
+          <h2>The cab is holding.</h2>
+          <p id="pause-detail">Take your time. The line is yours when you're ready.</p>
+          <div class="pause-actions">
+            <button id="resume-btn" class="primary-btn" type="button">Resume</button>
+            <button id="restart-btn" class="ghost-btn" type="button">Restart shift</button>
+          </div>
+          <p class="hint">P or Esc to resume</p>
+        </div>
+      </section>
+
+      <section id="results-screen" class="screen results-screen is-hidden">
+        <div class="results-card">
+          <div class="eyebrow">Shift report · IR 16</div>
+          <h2 id="result-grade">Gut</h2>
+          <p class="result-sub" id="result-sub">A clean run across the Mittelland.</p>
+          <div class="result-score">
+            <span id="result-overall">0</span><small>/ 100</small>
+          </div>
+          <div class="result-grid">
+            <div><span>Punctuality</span><b id="result-punctuality">0</b></div>
+            <div><span>Stop precision</span><b id="result-precision">0</b></div>
+            <div><span>Comfort</span><b id="result-comfort">0</b></div>
+            <div><span>Safety</span><b id="result-safety">0</b></div>
+          </div>
+          <div class="result-line" id="result-line">Arrived 09:15:00 · delay 0:00</div>
+          <div class="result-stops" id="result-stops"></div>
+          <div class="pause-actions">
+            <button id="again-btn" class="primary-btn" type="button">Drive again</button>
+            <button id="share-btn" class="ghost-btn" type="button">Copy result</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
